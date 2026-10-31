@@ -62,3 +62,8 @@ tap-testdir*/
 !/workspaces/libnpmsearch/
 !/workspaces/libnpmteam/
 !/workspaces/libnpmversion/
+
+# Base44 development environment (see docker-compose.base44.yml)
+!/.base44/
+!/docker-compose.base44.yml
+!/AGENTS.md

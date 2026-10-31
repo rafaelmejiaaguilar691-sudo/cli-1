@@ -1,0 +1,46 @@
+# Base44 development environment for the npm CLI monorepo.
+#
+# Development-only: the whole repo is bind-mounted and every service runs from
+# the checkout (no prebuilt app image), so edits are picked up without rebuilds.
+# The npm CLI has no web server of its own; the preview serves the repo's own
+# documentation site (the `docs` workspace) on host port 3000. The same service
+# is the working container for running the CLI and the test suite:
+#   docker compose -f docker-compose.base44.yml exec app node bin/npm-cli.js --version
+#   docker compose -f docker-compose.base44.yml exec app npx tap test/lib/commands/install.js
+services:
+  app:
+    image: node:22
+    working_dir: /app
+    labels:
+      base44.project: npm CLI
+      base44.kind: web
+      base44.port: "3000"
+      base44.docs: /
+    environment:
+      # Platform-provided sandbox flag, forwarded as-is (unset outside the sandbox).
+      - BASE44_PREVIEW_MODE
+      - PORT=3000
+    volumes:
+      - .:/app
+      # Dependency install cache only; never holds application data.
+      - npm-cache:/root/.npm
+    ports:
+      - "3000:3000"
+    # Dependencies sync from the committed lockfile on startup, then the docs
+    # site is built into docs/output and served. `--no-save` keeps the tracked
+    # package-lock.json untouched (the repo commits its bundled node_modules).
+    command:
+      - sh
+      - -ec
+      - npm install --no-save --no-audit --no-fund && npm run build -w docs && exec node .base44/preview-server.js
+    healthcheck:
+      # Exercises the real server (renders the docs index from nav.yml).
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
+    restart: on-failure
+
+volumes:
+  npm-cache:
